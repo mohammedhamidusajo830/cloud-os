@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cloud OS - Folder & File Manager</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
+
+    <!-- Top Navigation Bar -->
+    <header class="border-b border-slate-800 px-6 py-4 flex justify-between items-center bg-slate-900/50 backdrop-blur">
+        <div class="flex items-center space-x-3">
+            <div class="bg-blue-600 text-white font-black px-3 py-1.5 rounded-lg text-lg">☁️</div>
+            <h1 class="text-xl font-bold tracking-tight">CIS Cloud Drive</h1>
+        </div>
+        <!-- Breadcrumbs -->
+        <div id="breadcrumb" class="text-sm text-slate-400 bg-slate-900 px-4 py-1.5 rounded-lg border border-slate-800 flex items-center space-x-2">
+            <!-- Populated dynamically -->
+        </div>
+    </header>
+
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Sidebar -->
+        <aside class="w-72 border-r border-slate-800 p-6 flex flex-col justify-between bg-slate-900/20">
+            <div class="space-y-4">
+                <button onclick="fetchDirectory('')" class="w-full bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 font-semibold py-2.5 px-4 rounded-xl text-center border border-blue-800/50 shadow transition flex items-center justify-center space-x-2">
+                    <span>🏠</span> <span>Return to Home</span>
+                </button>
+                <button onclick="createFolderPrompt()" class="w-full bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold py-2.5 px-4 rounded-xl text-center border border-slate-700 shadow transition">
+                    📁 + New Folder
+                </button>
+                <label class="block w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-2.5 px-4 rounded-xl text-center cursor-pointer shadow-lg transition">
+                    📄 + Upload Files
+                    <input type="file" id="fileInput" class="hidden" multiple onchange="uploadFiles(event)">
+                </label>
+            </div>
+
+            <!-- Storage Meter Widget -->
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
+                <div class="flex justify-between text-xs font-medium text-slate-300">
+                    <span>Storage</span>
+                    <span id="storageText">0 MB / 10 GB</span>
+                </div>
+                <!-- Progress Bar Track -->
+                <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
+                    <div id="storageBar" class="bg-blue-500 h-full transition-all duration-500" style="width: 0%"></div>
+                </div>
+                <p id="remainingText" class="text-[10px] text-slate-500">10 GB remaining</p>
+            </div>
+        </aside>
+
+        <!-- Main Workspace Area -->
+        <main class="flex-1 p-8 overflow-y-auto">
+            <h2 id="currentFolderTitle" class="text-lg font-bold mb-4 text-slate-200">My Files / HOME</h2>
+            
+            <!-- Grid Container -->
+            <div id="itemGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                <!-- Populated dynamically -->
+            </div>
+        </main>
+    </div>
+
+    <!-- Frontend Script Logic -->
+    <script>
+        let currentPath = '';
+
+        async function fetchDirectory(path = '') {
+            currentPath = path;
+            renderBreadcrumbs();
+
+            try {
+                const res = await fetch(`/api/browse?path=${encodeURIComponent(path)}`);
+                const data = await res.json();
+                
+                // Update Storage Meter UI
+                updateStorageMeter(data.usedStorageMB, data.totalStorageMB);
+
+                const grid = document.getElementById('itemGrid');
+                grid.innerHTML = '';
+
+                document.getElementById('currentFolderTitle').textContent = path === '' ? 'My Files / Root' : `Files in /${path}`;
+
+                if (!data.items || data.items.length === 0) {
+                    grid.innerHTML = `<p class="text-slate-500 text-sm col-span-full">This folder is empty.</p>`;
+                    return;
+                }
+
+                data.items.forEach(item => {
+                    if (item.type === 'folder') {
+                        grid.innerHTML += `
+                            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col justify-between space-y-3 hover:border-blue-500 transition shadow-md cursor-pointer" ondblclick="fetchDirectory('${item.path}')">
+                                <div class="flex items-center space-x-3" onclick="fetchDirectory('${item.path}')">
+                                    <span class="text-3xl">📁</span>
+                                    <h3 class="font-medium text-sm truncate text-white" title="${item.name}">${item.name}</h3>
+                                </div>
+                                <div class="flex justify-end items-center pt-2 border-t border-slate-800 space-x-3 text-xs">
+                                    <button onclick="renameItem('${item.path}', '${item.name}')" class="text-slate-400 hover:text-white">Rename</button>
+                                    <button onclick="deleteItem('${item.path}')" class="text-red-400 hover:text-red-300">Delete</button>
+                                </div>
+                            </div>
+                        `;
+                    } else {
+                        grid.innerHTML += `
+                            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col justify-between space-y-3 hover:border-blue-500 transition shadow-md">
+                                <div>
+                                    <div class="text-2xl mb-1">📄</div>
+                                    <h3 class="font-medium text-sm truncate text-white" title="${item.name}">${item.name}</h3>
+                                    <p class="text-xs text-slate-400 mt-0.5">${item.size}</p>
+                                </div>
+                                <div class="flex justify-between items-center pt-2 border-t border-slate-800 text-xs">
+                                    <a href="${item.url}" target="_blank" class="text-blue-400 hover:underline font-semibold">Open</a>
+                                    <div class="space-x-2">
+                                        <button onclick="renameItem('${item.id}', '${item.name}')" class="text-slate-400 hover:text-white">Rename</button>
+                                        <button onclick="deleteItem('${item.id}')" class="text-red-400 hover:text-red-300">Delete</button>
+                                    </div>
+                                </div>
+                            </div>
+                        `;
+                    }
+                });
+            } catch (err) {
+                console.error("Error loading directory:", err);
+            }
+        }
+
+        function updateStorageMeter(usedMB, totalMB) {
+            const storageText = document.getElementById('storageText');
+            const storageBar = document.getElementById('storageBar');
+            const remainingText = document.getElementById('remainingText');
+
+            let usedFormatted = usedMB >= 1024 ? (usedMB / 1024).toFixed(2) + ' GB' : usedMB + ' MB';
+            let totalFormatted = (totalMB / 1024).toFixed(0) + ' GB';
+
+            storageText.textContent = `${usedFormatted} / ${totalFormatted}`;
+
+            const percentage = Math.min(100, (usedMB / totalMB) * 100);
+            storageBar.style.width = percentage + '%';
+
+            let remainingMB = totalMB - usedMB;
+            let remainingFormatted = remainingMB >= 1024 ? (remainingMB / 1024).toFixed(2) + ' GB' : remainingMB.toFixed(2) + ' MB';
+            remainingText.textContent = `${remainingFormatted} remaining`;
+        }
+
+        function renderBreadcrumbs() {
+            const bc = document.getElementById('breadcrumb');
+            let html = `<span class="cursor-pointer text-blue-400 hover:underline" onclick="fetchDirectory('')">HOME</span>`;
+            if (currentPath) {
+                const parts = currentPath.split('/');
+                let builtPath = '';
+                parts.forEach(part => {
+                    builtPath = builtPath ? builtPath + '/' + part : part;
+                    html += ` / <span class="cursor-pointer text-slate-300 hover:underline" onclick="fetchDirectory('${builtPath}')">${part}</span>`;
+                });
+            }
+            bc.innerHTML = html;
+        }
+
+        async function createFolderPrompt() {
+            const folderName = prompt("Enter new folder name:");
+            if (!folderName) return;
+
+            const res = await fetch('/api/create-folder', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ currentPath, folderName })
+            });
+            const result = await res.json();
+            alert(result.message);
+            fetchDirectory(currentPath);
+        }
+
+        async function uploadFiles(event) {
+            const files = event.target.files;
+            if (!files || files.length === 0) return;
+
+            const formData = new FormData();
+            for (let i = 0; i < files.length; i++) {
+                formData.append('files', files[i]);
+            }
+            formData.append('currentPath', currentPath);
+
+            try {
+                const res = await fetch('/api/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await res.json();
+                alert(result.message);
+                fetchDirectory(currentPath);
+            } catch (err) {
+                console.error("Upload error:", err);
+                alert("Failed to upload files.");
+            } finally {
+                event.target.value = '';
+            }
+        }
+
+        async function renameItem(itemPath, oldName) {
+            const newName = prompt("Enter new name:", oldName);
+            if (!newName || newName === oldName) return;
+
+            const res = await fetch('/api/rename', {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ itemPath, newName })
+            });
+            const result = nameResult = await res.json();
+            alert(nameResult.message);
+            fetchDirectory(currentPath);
+        }
+
+        async function deleteItem(itemPath) {
+            if (!confirm("Are you sure you want to delete this item?")) return;
+
+            const res = await fetch(`/api/item?path=${encodeURIComponent(itemPath)}`, { method: 'DELETE' });
+            const result = await res.json();
+            alert(result.message);
+            fetchDirectory(currentPath);
+        }
+
+        // Initial load
+        fetchDirectory('');
+    </script>
+</body>
+</html>
