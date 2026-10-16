@@ -9,21 +9,23 @@
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col">
 
     <!-- Top Navigation Bar -->
-    <header class="border-b border-slate-800 px-6 py-4 flex justify-between items-center bg-slate-900/50 backdrop-blur">
+    <header class="border-b border-slate-800 px-4 md:px-6 py-4 flex flex-col sm:flex-row justify-between items-start sm:items-center bg-slate-900/50 backdrop-blur gap-3">
         <div class="flex items-center space-x-3">
             <div class="bg-blue-600 text-white font-black px-3 py-1.5 rounded-lg text-lg">☁️</div>
-            <h1 class="text-xl font-bold tracking-tight">CIS Cloud Drive</h1>
+            <h1 class="text-xl font-bold tracking-tight">CloudOS Drive</h1>
         </div>
         <!-- Breadcrumbs -->
-        <div id="breadcrumb" class="text-sm text-slate-400 bg-slate-900 px-4 py-1.5 rounded-lg border border-slate-800 flex items-center space-x-2">
+        <div id="breadcrumb" class="text-xs md:text-sm text-slate-400 bg-slate-900 px-3 py-1.5 rounded-lg border border-slate-800 flex items-center space-x-2 overflow-x-auto max-w-full">
             <!-- Populated dynamically -->
         </div>
     </header>
 
-    <div class="flex flex-1 overflow-hidden">
-        <!-- Sidebar -->
-        <aside class="w-72 border-r border-slate-800 p-6 flex flex-col justify-between bg-slate-900/20">
-            <div class="space-y-4">
+    <!-- Main App Container: Stacks on mobile, side-by-side on desktop -->
+    <div class="flex flex-1 flex-col md:flex-row overflow-hidden">
+        
+        <!-- Sidebar: Full width on mobile, fixed width on desktop -->
+        <aside class="w-full md:w-72 border-b md:border-b-0 md:border-r border-slate-800 p-4 md:p-6 flex flex-col justify-between bg-slate-900/20 space-y-4 md:space-y-0">
+            <div class="space-y-3">
                 <button onclick="fetchDirectory('')" class="w-full bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 font-semibold py-2.5 px-4 rounded-xl text-center border border-blue-800/50 shadow transition flex items-center justify-center space-x-2">
                     <span>🏠</span> <span>Return to Home</span>
                 </button>
@@ -37,12 +39,11 @@
             </div>
 
             <!-- Storage Meter Widget -->
-            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2">
+            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl space-y-2 mt-4 md:mt-0">
                 <div class="flex justify-between text-xs font-medium text-slate-300">
                     <span>Storage</span>
                     <span id="storageText">0 MB / 10 GB</span>
                 </div>
-                <!-- Progress Bar Track -->
                 <div class="w-full bg-slate-800 h-2 rounded-full overflow-hidden">
                     <div id="storageBar" class="bg-blue-500 h-full transition-all duration-500" style="width: 0%"></div>
                 </div>
@@ -51,11 +52,11 @@
         </aside>
 
         <!-- Main Workspace Area -->
-        <main class="flex-1 p-8 overflow-y-auto">
-            <h2 id="currentFolderTitle" class="text-lg font-bold mb-4 text-slate-200">My Files / HOME</h2>
+        <main class="flex-1 p-4 md:p-8 overflow-y-auto">
+            <h2 id="currentFolderTitle" class="text-base md:text-lg font-bold mb-4 text-slate-200">My Files / Root</h2>
             
             <!-- Grid Container -->
-            <div id="itemGrid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            <div id="itemGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 <!-- Populated dynamically -->
             </div>
         </main>
@@ -73,7 +74,6 @@
                 const res = await fetch(`/api/browse?path=${encodeURIComponent(path)}`);
                 const data = await res.json();
                 
-                // Update Storage Meter UI
                 updateStorageMeter(data.usedStorageMB, data.totalStorageMB);
 
                 const grid = document.getElementById('itemGrid');
@@ -89,14 +89,14 @@
                 data.items.forEach(item => {
                     if (item.type === 'folder') {
                         grid.innerHTML += `
-                            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col justify-between space-y-3 hover:border-blue-500 transition shadow-md cursor-pointer" ondblclick="fetchDirectory('${item.path}')">
-                                <div class="flex items-center space-x-3" onclick="fetchDirectory('${item.path}')">
+                            <div class="bg-slate-900 border border-slate-800 p-4 rounded-xl flex flex-col justify-between space-y-3 hover:border-blue-500 transition shadow-md cursor-pointer" onclick="fetchDirectory('${item.path}')">
+                                <div class="flex items-center space-x-3">
                                     <span class="text-3xl">📁</span>
                                     <h3 class="font-medium text-sm truncate text-white" title="${item.name}">${item.name}</h3>
                                 </div>
                                 <div class="flex justify-end items-center pt-2 border-t border-slate-800 space-x-3 text-xs">
-                                    <button onclick="renameItem('${item.path}', '${item.name}')" class="text-slate-400 hover:text-white">Rename</button>
-                                    <button onclick="deleteItem('${item.path}')" class="text-red-400 hover:text-red-300">Delete</button>
+                                    <button onclick="event.stopPropagation(); renameItem('${item.path}', '${item.name}')" class="text-slate-400 hover:text-white px-2 py-1">Rename</button>
+                                    <button onclick="event.stopPropagation(); deleteItem('${item.path}')" class="text-red-400 hover:text-red-300 px-2 py-1">Delete</button>
                                 </div>
                             </div>
                         `;
@@ -109,10 +109,10 @@
                                     <p class="text-xs text-slate-400 mt-0.5">${item.size}</p>
                                 </div>
                                 <div class="flex justify-between items-center pt-2 border-t border-slate-800 text-xs">
-                                    <a href="${item.url}" target="_blank" class="text-blue-400 hover:underline font-semibold">Open</a>
-                                    <div class="space-x-2">
-                                        <button onclick="renameItem('${item.id}', '${item.name}')" class="text-slate-400 hover:text-white">Rename</button>
-                                        <button onclick="deleteItem('${item.id}')" class="text-red-400 hover:text-red-300">Delete</button>
+                                    <a href="${item.url}" target="_blank" class="text-blue-400 hover:underline font-semibold px-1 py-1">Open</a>
+                                    <div class="space-x-1">
+                                        <button onclick="renameItem('${item.id}', '${item.name}')" class="text-slate-400 hover:text-white px-1 py-1">Rename</button>
+                                        <button onclick="deleteItem('${item.id}')" class="text-red-400 hover:text-red-300 px-1 py-1">Delete</button>
                                     </div>
                                 </div>
                             </div>
@@ -144,13 +144,13 @@
 
         function renderBreadcrumbs() {
             const bc = document.getElementById('breadcrumb');
-            let html = `<span class="cursor-pointer text-blue-400 hover:underline" onclick="fetchDirectory('')">HOME</span>`;
+            let html = `<span class="cursor-pointer text-blue-400 hover:underline whitespace-nowrap" onclick="fetchDirectory('')">Root</span>`;
             if (currentPath) {
                 const parts = currentPath.split('/');
                 let builtPath = '';
                 parts.forEach(part => {
                     builtPath = builtPath ? builtPath + '/' + part : part;
-                    html += ` / <span class="cursor-pointer text-slate-300 hover:underline" onclick="fetchDirectory('${builtPath}')">${part}</span>`;
+                    html += ` / <span class="cursor-pointer text-slate-300 hover:underline whitespace-nowrap" onclick="fetchDirectory('${builtPath}')">${part}</span>`;
                 });
             }
             bc.innerHTML = html;
@@ -205,8 +205,8 @@
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ itemPath, newName })
             });
-            const result = nameResult = await res.json();
-            alert(nameResult.message);
+            const result = await res.json();
+            alert(result.message);
             fetchDirectory(currentPath);
         }
 
@@ -219,7 +219,6 @@
             fetchDirectory(currentPath);
         }
 
-        // Initial load
         fetchDirectory('');
     </script>
 </body>
